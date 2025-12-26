@@ -1,12 +1,13 @@
-from os import name
-from turtle import title
 from django.shortcuts import render
-from .serializer import ProjectSerializer
+from .serializer import AddMemberSerializer, ProjectSerializer, TaskSerializer
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import BasicAuthentication, SessionAuthentication
-from .models import Project, Task
+from .models import Project, Task, User
 from django.db.models import Q
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from django.shortcuts import get_object_or_404
 
 # from rest_framework import filters
 # Create your views here.
@@ -30,12 +31,24 @@ class ProjectViewSet(ModelViewSet):
         if search:
             queryset = queryset.filter(Q(name__icontains=search) | Q(
                 description__icontains=search))
-
+        owner = self.request.query_params.get("owner")
+        if owner:
+            queryset = queryset.filter(owner_id=owner)
         return queryset
+
+    @action(detail=True, methods=['get', 'post'], serializer_class=AddMemberSerializer)
+    def add_member(self, request, pk=None):
+        project = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user_id = serializer.validated_data['user_id']
+        user = get_object_or_404(User, id=user_id)
+        project.members.add(user)
+        return Response({'detail': 'member added'})
 
 
 class TaskViewSet(ModelViewSet):
-    serializer_class = ProjectSerializer
+    serializer_class = TaskSerializer
     authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
